@@ -14,6 +14,8 @@ func _ready():
 	network_controller.connect("network_controller_on_game_started", self, "on_game_started")
 	network_controller.connect("network_controller_on_player_ready_with", self, "on_player_ready_with")
 	network_controller.connect("network_controller_on_players_turn_with", self, "on_players_turn_with")
+	network_controller.connect("network_controller_on_moved_piece", self, "on_moved_piece")
+	network_controller.connect("network_controller_on_game_over_with", self, "on_game_over_with")
 
 func _on_start_button_pressed():
 	var host = NetworkedMultiplayerENet.new()
@@ -59,3 +61,9 @@ func on_player_ready_with(id, color):
 
 func on_players_turn_with(id, color):
 	update_status_with(str("[", color, "] player ", id, "'s turn to move"))
+
+func on_moved_piece(piece, color):
+	update_status_with(str("[", color, "] Moved ", piece))
+
+func on_game_over_with(winner, color):
+	update_status_with(str("GAME OVER. player ", winner, " wins, color ", color))
