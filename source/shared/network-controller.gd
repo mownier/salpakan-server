@@ -283,18 +283,13 @@ master func process_moved_piece_with(color, current_slot, destination_slot):
 		PIECE_COLOR.white:
 			player2 = color_player_info[PIECE_COLOR.black]
 	
-	if pre_winning_color != null:
-		var winner = color_player_info[pre_winning_color]
-		notify_on_game_over_with(winner, player1, player2, pre_winning_color)
-		return
-	
 	var current_board_slot = board_slots[current_slot.x][current_slot.y]
 	var destination_board_slot = board_slots[destination_slot.x][destination_slot.y]
 	
 	if destination_board_slot.is_vacant():
 		destination_board_slot.make_occupied_with(current_board_slot.rank, color)
 		current_board_slot.make_vacant()
-		match destination_board_slot.rank:
+		match int(destination_board_slot.rank):
 			PIECE.flag:
 				match color:
 					PIECE_COLOR.black:
@@ -309,16 +304,27 @@ master func process_moved_piece_with(color, current_slot, destination_slot):
 		rpc("on_next_move_with", next_color_to_move)
 		emit_signal("network_controller_on_players_turn_with", color_player_info[next_color_to_move], color_string_for(next_color_to_move))
 		emit_signal("network_controller_on_moved_piece", piece_string_for(destination_board_slot.rank), color_string_for(color))
+		
+		if pre_winning_color == next_color_to_move:
+			var winner = color_player_info[pre_winning_color]
+			notify_on_game_over_with(winner, player1, player2, pre_winning_color)
+		
 		return
 	
 	var aggressive_rank = current_board_slot.rank
 	var neutral_rank = destination_board_slot.rank
 	var removed_rank
 	
-	# Flag vs Flag: The aggressive player will win
-	if neutral_rank == PIECE.flag && aggressive_rank == PIECE.flag:
+	# Flag vs Any rank: The aggressive player will win
+	if neutral_rank == PIECE.flag:
 		var winner = player1
 		notify_on_game_over_with(winner, player1, player2, color)
+		return
+		
+	# Any rank vs Flag: The neutral player will win
+	elif aggressive_rank == PIECE.flag:
+		var winner = player2
+		notify_on_game_over_with(winner, player1, player2, player_color_info[winner])
 		return
 		
 	# Same rank: They are both out of the game
@@ -328,19 +334,28 @@ master func process_moved_piece_with(color, current_slot, destination_slot):
 		rpc("on_both_pieces_removed_with", current_slot, destination_slot)
 		emit_signal("network_controller_on_removed_both_pieces", piece_string_for(destination_board_slot.rank), piece_string_for(current_board_slot.rank))
 		
-	# Spy vs Private: Spy will be eliminated, OR
-	# Neutral rank is lower: It will be eliminated
-	elif (neutral_rank == PIECE.spy && aggressive_rank == PIECE.private) || \
-		(neutral_rank < aggressive_rank):
-		removed_rank = current_board_slot.rank
+	# Spy vs Private: Spy will be eliminated
+	elif neutral_rank == PIECE.spy && aggressive_rank == PIECE.private:
+		removed_rank = destination_board_slot.rank
 		current_board_slot.make_vacant()
 		destination_board_slot.make_occupied_with(aggressive_rank, color)
 		rpc("on_removed_neutral_piece_with", current_slot, destination_slot)
 		
-	# Private vs Spy: Spy will be eliminated, OR
+	# Private vs Spy: Spy will be eliminated
+	elif neutral_rank == PIECE.private && aggressive_rank == PIECE.spy:
+		removed_rank = current_board_slot.rank
+		current_board_slot.make_vacant()
+		rpc("on_removed_aggressive_piece_with", current_slot)
+		
+	# Neutral rank is lower: It will be eliminated
+	elif neutral_rank < aggressive_rank:
+		removed_rank = destination_board_slot.rank
+		current_board_slot.make_vacant()
+		destination_board_slot.make_occupied_with(aggressive_rank, color)
+		rpc("on_removed_neutral_piece_with", current_slot, destination_slot)
+		
 	# Aggressive rank is lower: It will be eliminated
-	elif (neutral_rank == PIECE.private && aggressive_rank == PIECE.spy) || \
-		(aggressive_rank < neutral_rank):
+	elif aggressive_rank < neutral_rank:
 		removed_rank = current_board_slot.rank
 		current_board_slot.make_vacant()
 		rpc("on_removed_aggressive_piece_with", current_slot)
